@@ -15,6 +15,7 @@ import (
 const USERS = "users"
 
 var JWT_SECRET []byte
+var NODE_ADDR string
 
 type creds struct {
 	Login    string `json:"login"`
@@ -24,9 +25,21 @@ type creds struct {
 func Init() {
 	os.Mkdir(USERS, 0700)
 	JWT_SECRET = []byte(os.Getenv("JWT_SECRET"))
+	NODE_ADDR = os.Getenv("NODE_ADDR")
+}
+func getUselessCrapByName(name string) (crap models.Crap, err error) {
+	bytes, err := os.ReadFile(path.Join(DATA, name))
+	if err != nil {
+		return
+	}
+	if err = json.Unmarshal(bytes, &crap); err != nil {
+		return
+	}
+
+	return
 }
 func getUserByName(name string) (user models.User, err error) {
-	bytes, err := ioutil.ReadFile(makeUserPath(name))
+	bytes, err := os.ReadFile(makeUserPath(name))
 	if err != nil {
 		return
 	}

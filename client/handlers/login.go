@@ -17,8 +17,8 @@ func Login(ctx *fiber.Ctx) error {
 		return fiber.ErrUnauthorized
 	}
 	str, err := makeToken(user)
-	if _, err := ctx.WriteString(str); err != nil {
+	if err != nil {
 		return err
 	}
-	return nil
+	return ctx.JSON(str)
 }
