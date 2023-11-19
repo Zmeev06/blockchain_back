@@ -15,19 +15,17 @@ const subsidy = 10
 type SignedTransaction struct {
 	Transaction
 	Signature shared.Bytes
-	PubKey    shared.PublicKey
-	ID        shared.Bytes
 }
 
 // Transaction represents a Bitcoin transaction
 type Transaction struct {
-	Sender []shared.PublicKey
+	Sender    []shared.PublicKey
 	Recipient shared.PublicKey
-	Amount float64
+	Amount    float64
 }
 
 // Sign signs each input of a Transaction
-func (tx *Transaction) Sign(privKey rsa.PrivateKey, prevTXs map[string]Transaction) (st SignedTransaction, err error) {
+func (tx *Transaction) Sign(privKey rsa.PrivateKey) (st SignedTransaction, err error) {
 	data, err := json.Marshal(*tx)
 	if err != nil {
 		return
@@ -39,8 +37,9 @@ func (tx *Transaction) Sign(privKey rsa.PrivateKey, prevTXs map[string]Transacti
 	}
 	st.Transaction = *tx
 	st.Signature = sig
-	st.PubKey = shared.PublicKey(privKey.PublicKey)
-	st.ID = hashed[:]
+	// st. = shared.PublicKey(privKey.PublicKey)
+	// fmt.Printf("%#v", st)
+	// st.ID = hashed[:]
 	return
 }
 
@@ -68,56 +67,4 @@ func NewCoinbaseTX(to shared.PublicKey) *Transaction {
 	tx := Transaction{[]shared.PublicKey{}, to, subsidy}
 
 	return &tx
-}
-
-// NewUTXOTransaction creates a new transaction
-func NewUTXOTransaction(wallet *rsa.PublicKey, to *rsa.PublicKey, amount int, UTXOSet *UTXOSet) *Transaction {
-	var inputs []TXInput
-	var outputs []TXOutput
-
-	pubKeyHash := HashPubKey(wallet.PublicKey)
-	acc, validOutputs := FindSpendableOutputs(pubKeyHash, amount)
-
-	if acc < amount {
-		log.Panic("ERROR: Not enough funds")
-	}
-
-	// Build a list of inputs
-	for txid, outs := range validOutputs {
-		txID, err := hex.DecodeString(txid)
-		if err != nil {
-			log.Panic(err)
-		}
-
-		for _, out := range outs {
-			input := TXInput{txID, out, nil, wallet.PublicKey}
-			inputs = append(inputs, input)
-		}
-	}
-
-	// Build a list of outputs
-	from := fmt.Sprintf("%s", wallet.GetAddress())
-	outputs = append(outputs, *NewTXOutput(amount, to))
-	if acc > amount {
-		outputs = append(outputs, *NewTXOutput(acc-amount, from)) // a change
-	}
-
-	tx := Transaction{nil, inputs, outputs}
-	tx.ID = tx.Hash()
-	UTXOSet.Blockchain.SignTransaction(&tx, wallet.PrivateKey)
-
-	return &tx
-}
-
-// DeserializeTransaction deserializes a transaction
-func DeserializeTransaction(data []byte) Transaction {
-	var transaction Transaction
-
-	decoder := gob.NewDecoder(bytes.NewReader(data))
-	err := decoder.Decode(&transaction)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	return transaction
 }

@@ -18,9 +18,12 @@ func Balance(ctx *fiber.Ctx) error {
 	}
 	agent := fiber.Post(fmt.Sprintf("http://localhost%s/api/node/balance", NODE_ADDR))
 	status, bytes, errs := agent.JSON(data).Bytes()
+	ctx.Context().SetBody(bytes)
 	if len(errs) != 0 {
 		return ctx.Status(status).JSON(errs)
 	}
-	ctx.Context().SetBody(bytes)
+	if status != 200 {
+		return ctx.SendStatus(status)
+	}
 	return nil
 }

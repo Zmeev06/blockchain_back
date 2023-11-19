@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
+
 )
 
 type PublicKey rsa.PublicKey
@@ -27,6 +28,15 @@ func (this *PublicKey) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	this = (*PublicKey)(key)
+	*this = PublicKey(*key)
 	return err
+}
+func (this *PublicKey) Equals(another PublicKey) (bool) {
+	if this.N.Cmp(another.N) != 0 {
+		return false
+	}
+	if this.E != another.E {
+		return false
+	}
+	return true
 }

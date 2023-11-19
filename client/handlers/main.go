@@ -3,7 +3,7 @@ package handlers
 import (
 	"chopcoin/client/models"
 	"encoding/json"
-	"io/ioutil"
+
 	"os"
 	"path"
 	"time"
@@ -13,6 +13,7 @@ import (
 )
 
 const USERS = "users"
+const DATA = "useless_crap"
 
 var JWT_SECRET []byte
 var NODE_ADDR string
@@ -23,12 +24,16 @@ type creds struct {
 }
 
 func Init() {
-	os.Mkdir(USERS, 0700)
+	os.MkdirAll(USERS, 0700)
+	os.MkdirAll(DATA, 0777)
 	JWT_SECRET = []byte(os.Getenv("JWT_SECRET"))
 	NODE_ADDR = os.Getenv("NODE_ADDR")
 }
+func makeCrapPath(name string) string {
+	return path.Join(DATA, name)
+}
 func getUselessCrapByName(name string) (crap models.Crap, err error) {
-	bytes, err := os.ReadFile(path.Join(DATA, name))
+	bytes, err := os.ReadFile(makeCrapPath(name))
 	if err != nil {
 		return
 	}

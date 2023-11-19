@@ -1,7 +1,9 @@
 package models
 
+import "chopcoin/shared"
+
 type SendReq struct {
-	From   string `json:"from"`
-	To     string `json:"to"`
-	Amount uint64 `json:"amount"`
+	From   shared.PublicKey `json:"from"`
+	To     shared.PublicKey `json:"to"`
+	Amount float64          `json:"amount"`
 }

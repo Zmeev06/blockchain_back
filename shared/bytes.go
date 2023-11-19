@@ -4,7 +4,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 )
+
 type Bytes []byte
+
 func (this Bytes) MarshalJSON() ([]byte, error) {
 	v := hex.EncodeToString(this)
 	return json.Marshal(v)
@@ -15,6 +17,9 @@ func (this *Bytes) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	bytes, err := hex.DecodeString(v)
-	copy(*this, bytes)
+	*this = bytes
 	return err
+}
+func (this Bytes) String() string {
+	return hex.EncodeToString(this)
 }

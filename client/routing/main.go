@@ -3,10 +3,8 @@ package routing
 import (
 	"chopcoin/client/handlers"
 	"chopcoin/client/middleware"
-	"net/http"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/filesystem"
 )
 
 func Setup(app *fiber.App) {
@@ -22,7 +20,4 @@ func Setup(app *fiber.App) {
 	api.Get("/history", handlers.History)
 	api.Get("/crap", handlers.CrapGet)
 	api.Post("/crap", handlers.CrapPost)
-	app.Use("/", filesystem.New(filesystem.Config{
-		Root:         http.Dir("dist"),
-		NotFoundFile: "index.html"}))
 }

@@ -37,23 +37,23 @@ func (bc *Blockchain) Create(recipient shared.PublicKey) error {
 	if err != nil {
 		return err
 	}
-	bc.tip = *genesis
+
 	return nil
 }
 func (bc *Blockchain) Connect(recipient shared.PublicKey) error {
+	fs := os.DirFS(bc.Dir)
 	dir, err := os.ReadDir(bc.Dir)
 	if err != nil {
 		return err
 	}
 	var highest Block
 	for _, b := range dir {
-		block, err := bc.GetBlock(shared.Bytes(path.Base(b.Name())))
+		file, err := fs.Open(b.Name())
 		if err != nil {
 			return err
 		}
 		var block Block
-		if err :=json.NewDecoder(file).Decode(&block); err != nil {
-		// if err := json.Unmarshal(bytes, &block); err != nil {
+		if err := json.NewDecoder(file).Decode(&block); err != nil {
 			return err
 		}
 		if block.Height > highest.Height {
@@ -61,6 +61,7 @@ func (bc *Blockchain) Connect(recipient shared.PublicKey) error {
 		}
 	}
 	bc.tip = highest
+	fmt.Println(bc.tip.Height)
 	return nil
 }
 
@@ -79,193 +80,35 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 	}
 	bytes, err := json.Marshal(*block)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	if err := os.WriteFile(bc.makeBlockPath(*block), bytes, 0600); err != nil {
 		return err
 	}
+	bc.tip = *block
 	return nil
 }
 
 // FindTransaction finds a transaction by its ID
-func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
-	bci := bc.Iterator()
 
-	for {
-		block := bci.Next()
-
-		for _, tx := range block.Transactions {
-			if bytes.Compare(tx.ID, ID) == 0 {
-				return *tx, nil
-			}
-		}
-
-		if len(block.PrevBlockHash) == 0 {
-			break
-		}
-	}
-
-	return Transaction{}, errors.New("Transaction is not found")
-}
-func (bc *Blockchain) FindSpendableOutputs(recepient shared.PublicKey, amount int) (int, map[string][]int) {
-	unspentOutputs := make(map[string][]int)
-	unspentTXs := bc.FindUnspentTransactions(recepient)
-	accumulated := 0
-
-Work:
-	for _, tx := range unspentTXs {
-		txID := hex.EncodeToString(tx.ID)
-
-		for outIdx, out := range tx.Vout {
-			if out.CanBeUnlockedWith(recepient) && accumulated < amount {
-				accumulated += out.Value
-				unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
-
-				if accumulated >= amount {
-					break Work
-				}
-			}
-		}
-	}
-
-	return accumulated, unspentOutputs
-}
-func (bc *Blockchain) FindUnspentTransactions(address shared.PublicKey) []Transaction {
-	var unspentTXs []Transaction
-	spentTXOs := make(map[string][]int)
-	bci := bc.Iterator()
-
-	for {
-		block := bci.Next()
-
-		for _, tx := range block.Transactions {
-			txID := hex.EncodeToString(tx.ID)
-
-		Outputs:
-			for outIdx, out := range tx.Outputs {
-				// Was the output spent?
-				if spentTXOs[txID] != nil {
-					for _, spentOut := range spentTXOs[txID] {
-						if spentOut == outIdx {
-							continue Outputs
-						}
-					}
-				}
-
-				if out.IsLockedWithKey(address) {
-					unspentTXs = append(unspentTXs, *tx)
-				}
-			}
-
-			if tx.IsCoinbase() == false {
-				for _, in := range tx.Inputs {
-					if in.CanUnlockOutputWith(address) {
-						inTxID := hex.EncodeToString(in.Txid)
-						spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
-					}
-				}
-			}
-		}
-
-		if len(block.PrevBlockHash) == 0 {
-			break
-		}
-	}
-
-	return unspentTXs
-}
-
-// FindUTXO finds all unspent transaction outputs and returns transactions with spent outputs removed
-func (bc *Blockchain) FindUTXO() map[string]models.TXOutputs {
-	UTXO := make(map[string]models.TXOutputs)
-	spentTXOs := make(map[string][]int)
-	bci := bc.Iterator()
-
-	for {
-		block := bci.Next()
-
-		for _, tx := range block.Transactions {
-			txID := hex.EncodeToString(tx.ID)
-
-		Outputs:
-			for outIdx, out := range tx.Vout {
-				// Was the output spent?
-				if spentTXOs[txID] != nil {
-					for _, spentOutIdx := range spentTXOs[txID] {
-						if spentOutIdx == outIdx {
-							continue Outputs
-						}
-					}
-				}
-
-				outs := UTXO[txID]
-				outs.Outputs = append(outs.Outputs, out)
-				UTXO[txID] = outs
-			}
-
-			if tx.IsCoinbase() == false {
-				for _, in := range tx.Vin {
-					inTxID := hex.EncodeToString(in.Txid)
-					spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
-				}
-			}
-		}
-
-		if len(block.PrevBlockHash) == 0 {
-			break
-		}
-	}
-
-	return UTXO
-}
-
-// Iterator returns a BlockchainIterat
+// Iterator returns a BlockchainIterator
 func (bc *Blockchain) Iterator() *BlockchainIterator {
-	bci := &BlockchainIterator{&bc.tip, bc, nil}
+	bci := &BlockchainIterator{bc.tip, bc, nil}
 	return bci
 }
 
-// GetBestHeight returns the height of the latest block
-func (bc *Blockchain) GetBestHeight() int {
-	var lastBlock Block
-
-	err := bc.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(blocksBucket))
-		lastHash := b.Get([]byte("l"))
-		blockData := b.Get(lastHash)
-		lastBlock = *DeserializeBlock(blockData)
-
-		return nil
-	})
-	if err != nil {
-		log.Panic(err)
-	}
-
-	return lastBlock.Height
-}
-
 // GetBlock finds a block by its hash and returns it
-func (bc *Blockchain) GetBlock(blockHash []byte) (Block, error) {
+func (bc *Blockchain) GetBlock(blockHash shared.Bytes) (Block, error) {
 	var block Block
 
-	err := bc.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(blocksBucket))
-
-		blockData := b.Get(blockHash)
-
-		if blockData == nil {
-			return errors.New("Block is not found.")
-		}
-
-		block = *DeserializeBlock(blockData)
-
-		return nil
-	})
+	bytes, err := os.ReadFile(bc.makeBlockPath(Block{Hash: blockHash}))
 	if err != nil {
 		return block, err
 	}
-
+	if err := json.Unmarshal(bytes, &block); err != nil {
+		return block, err
+	}
 	return block, nil
 }
 
